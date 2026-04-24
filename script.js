@@ -119,20 +119,32 @@ async function sendMessage() {
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+    await new Promise((r) => setTimeout(r, 900));
 
-      output += decoder.decode(value, { stream: true });
+while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
 
-      aiBubble.innerHTML =
-        renderMarkdown(output) + `<span class="typing-cursor"></span>`;
+  const chunk = decoder.decode(value, { stream: true });
 
-      highlightCode();
-      scrollBottom();
+  for (const char of chunk) {
+    output += char;
 
-      await new Promise((r) => setTimeout(r, 18));
-    }
+    aiBubble.innerHTML =
+      renderMarkdown(output) + `<span class="typing-cursor"></span>`;
+
+    highlightCode();
+    scrollBottom();
+
+    let delay = 18;
+
+    if (/[.,!?]/.test(char)) delay = 150;
+    if (char === "\n") delay = 220;
+    if (Math.random() > 0.88) delay += 100;
+
+    await new Promise((r) => setTimeout(r, delay));
+  }
+}
 
     aiBubble.innerHTML = renderMarkdown(output || "AI tidak memberi jawaban.");
     chats.push({ role: "ai", text: output });
