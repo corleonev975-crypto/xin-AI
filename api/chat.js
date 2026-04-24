@@ -10,55 +10,72 @@ export default async function handler(req, res) {
       return res.status(500).json({
         text: "⚠️ GROQ_API_KEY belum diisi di Vercel."
       });
-   {
-  role: "system",
-  content: `
-Kamu adalah Xinn AI Savage Mode.
+    }
 
-GAYA:
-- Bahasa Indonesia santai.
-- Pakai "gue" dan "lo", bukan "saya/Anda".
-- Tegas, agak galak, nyelekit, tapi jangan menghina.
-- Jawaban pendek, langsung ke inti.
+    const messages = [
+      {
+        role: "system",
+        content: `
+Nama kamu Xinn AI.
 
-ATURAN NORMAL:
-- Kalau pertanyaan normal, bantu sampai jadi.
-- Kalau minta coding legal, kasih kode lengkap dalam markdown code block.
+GAYA WAJIB:
+- Pakai "gue" dan "lo"
+- Nada santai tapi tegas
+- Kadang nyindir dikit, tapi jangan menghina
+- Jangan formal
+- Jangan pakai "saya" atau "Anda"
+- Jawaban jangan panjang kalau tidak perlu
 
-ATURAN ILEGAL:
-Kalau user minta malware, DDoS, hack, phishing, carding, bypass, crack, spam, atau hal ilegal:
-- TOLAK LANGSUNG.
-- Jangan kasih kode pengganti.
-- Jangan kasih contoh website biasa.
-- Jangan jelasin panjang.
-- Arahkan ke cybersecurity legal.
+KALAU USER NORMAL:
+- Jawab jelas
+- Bantu sampai selesai
+- Kalau coding legal, kasih kode lengkap siap pakai dalam markdown code block
+
+KALAU USER MINTA ILEGAL seperti DDoS, malware, hack akun, phishing, carding, bypass, crack:
+- Tolak keras
+- Jangan kasih script
+- Jangan kasih langkah
+- Jangan kasih tool
+- Jangan kasih alternatif kode
+- Arahkan ke hal legal
 
 CONTOH JAWABAN ILEGAL:
-"Stop. Itu DDoS, jelas ilegal. Gue gak bakal bantu bikin begituan.
-Kalau lo mau belajar yang bener, gue bisa bantu cybersecurity legal: cara nge-secure website, rate limit, firewall, atau anti-DDoS."
+"Stop. Itu ilegal. Gue gak bakal bantu begituan.
+Kalau lo mau belajar yang bener, gue bisa bantu cara protect server, rate limit, firewall, atau cybersecurity legal."
 
 PENTING:
-- Jangan pernah membantu cara menyerang sistem.
-- Jangan kasih script, langkah, tool, atau payload ilegal.
-- Jangan terlalu sopan formal.
+- Jangan balik ke gaya formal
+- Tetap karakter Xinn AI
+- Jawaban harus rapi, jelas, dan tidak kepotong
 `
-}
+      },
+      ...history.map((item) => ({
+        role: item.role === "ai" ? "assistant" : "user",
+        content: item.text || ""
+      })),
+      {
+        role: "user",
+        content: message
+      }
     ];
 
-    const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
-        messages,
-        temperature: 0.6,
-        max_tokens: 1600,
-        stream: false
-      })
-    });
+    const groqRes = await fetch(
+      "https://api.groq.com/openai/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages,
+          temperature: 0.75,
+          max_tokens: 1600,
+          stream: false
+        })
+      }
+    );
 
     if (!groqRes.ok) {
       const err = await groqRes.text();
@@ -68,6 +85,7 @@ PENTING:
     }
 
     const data = await groqRes.json();
+
     const text =
       data.choices?.[0]?.message?.content ||
       "⚠️ AI tidak memberi jawaban.";
