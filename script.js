@@ -117,9 +117,7 @@ async function sendMessage() {
     aiBubble.innerHTML = "";
 
     const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-
-    await new Promise((r) => setTimeout(r, 900));
+const decoder = new TextDecoder();
 
 while (true) {
   const { done, value } = await reader.read();
@@ -127,23 +125,15 @@ while (true) {
 
   const chunk = decoder.decode(value, { stream: true });
 
-  const words = chunk.split(" ");
+  output += chunk;
 
-  for (const word of words) {
-    output += word + " ";
+  aiBubble.innerHTML =
+    renderMarkdown(output) + `<span class="typing-cursor"></span>`;
 
-    aiBubble.innerHTML =
-      renderMarkdown(output) + `<span class="typing-cursor"></span>`;
+  highlightCode();
+  scrollBottom();
 
-    highlightCode();
-    scrollBottom();
-
-    let delay = 30 + Math.random() * 40;
-
-    if (/[.,!?]$/.test(word)) delay = 180;
-
-    await new Promise((r) => setTimeout(r, delay));
-  }
+  await new Promise((r) => setTimeout(r, 15));
 }
 
     aiBubble.innerHTML = renderMarkdown(output || "AI tidak memberi jawaban.");
