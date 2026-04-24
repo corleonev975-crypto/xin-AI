@@ -4,11 +4,6 @@ const input = $("messageInput");
 const chat = $("chatArea");
 const welcome = $("welcome");
 const sendBtn = $("sendBtn");
-const sidebar = $("sidebar");
-const overlay = $("overlay");
-const moreMenu = $("moreMenu");
-const plusMenu = $("plusMenu");
-const historyList = $("historyList");
 
 let chats = JSON.parse(localStorage.getItem("xinn_chats") || "[]");
 let loading = false;
@@ -22,7 +17,7 @@ function scrollBottom() {
 }
 
 function renderMarkdown(text) {
-  if (!window.marked) return text.replace(/\n/g, "<br>");
+  if (!window.marked) return (text || "").replace(/\n/g, "<br>");
   return marked.parse(text || "");
 }
 
@@ -78,6 +73,32 @@ function addMessage(role, text, saveIt = true) {
   return bubble;
 }
 
+async function typingEffect(el, text) {
+  let output = "";
+
+  for (let i = 0; i < text.length; i++) {
+    output += text[i];
+
+    el.innerHTML =
+      renderMarkdown(output) +
+      `<span class="typing-cursor"></span>`;
+
+    highlightCode();
+    scrollBottom();
+
+    let delay = 18 + Math.random() * 25;
+
+    if (/[.,!?]/.test(text[i])) delay = 130;
+    if (text[i] === "\n") delay = 180;
+    if (Math.random() > 0.93) delay += 100;
+
+    await new Promise((r) => setTimeout(r, delay));
+  }
+
+  el.innerHTML = renderMarkdown(output);
+  highlightCode();
+}
+
 async function sendMessage() {
   if (loading) return;
 
@@ -98,9 +119,9 @@ async function sendMessage() {
     false
   );
 
-  let output = "";
-
   try {
+    await new Promise((r) => setTimeout(r, 700));
+
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: {
@@ -112,34 +133,19 @@ async function sendMessage() {
       })
     });
 
-    if (!res.ok) throw new Error("API error");
+    const data = await res.json();
+
+    const answer =
+      data.text ||
+      data.reply ||
+      data.answer ||
+      "⚠️ AI tidak memberi jawaban.";
 
     aiBubble.innerHTML = "";
+    await typingEffect(aiBubble, answer);
 
-    const reader = res.body.getReader();
-const decoder = new TextDecoder();
-
-while (true) {
-  const { done, value } = await reader.read();
-  if (done) break;
-
-  const chunk = decoder.decode(value, { stream: true });
-
-  output += chunk;
-
-  aiBubble.innerHTML =
-    renderMarkdown(output) + `<span class="typing-cursor"></span>`;
-
-  highlightCode();
-  scrollBottom();
-
-  await new Promise((r) => setTimeout(r, 15));
-}
-
-    aiBubble.innerHTML = renderMarkdown(output || "AI tidak memberi jawaban.");
-    chats.push({ role: "ai", text: output });
+    chats.push({ role: "ai", text: answer });
     save();
-    highlightCode();
   } catch (err) {
     aiBubble.innerHTML = "⚠️ Error: API gagal atau koneksi bermasalah.";
   } finally {
@@ -147,69 +153,6 @@ while (true) {
     sendBtn.disabled = false;
     scrollBottom();
   }
-}
-
-function openSidebar() {
-  sidebar.classList.add("active");
-  overlay.classList.add("active");
-}
-
-function closeSidebar() {
-  sidebar.classList.remove("active");
-  overlay.classList.remove("active");
-}
-
-function toggleMore(e) {
-  e.stopPropagation();
-  moreMenu.classList.toggle("active");
-  plusMenu.classList.remove("active");
-}
-
-function togglePlus(e) {
-  e.stopPropagation();
-  plusMenu.classList.toggle("active");
-  moreMenu.classList.remove("active");
-}
-
-function newChat() {
-  chats = [];
-  localStorage.removeItem("xinn_chats");
-  chat.innerHTML = "";
-  chat.appendChild(welcome);
-  welcome.style.display = "flex";
-  closeSidebar();
-}
-
-function clearChat() {
-  newChat();
-  moreMenu.classList.remove("active");
-}
-
-function exportChat() {
-  const blob = new Blob([JSON.stringify(chats, null, 2)], {
-    type: "application/json"
-  });
-
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "xinn-ai-chat.json";
-  a.click();
-}
-
-function toggleTheme() {
-  document.body.classList.toggle("light");
-  moreMenu.classList.remove("active");
-}
-
-function quickAsk(text) {
-  input.value = text;
-  sendMessage();
-}
-
-function handleFile(file) {
-  if (!file) return;
-  addMessage("user", `File dipilih: **${file.name}**`);
-  plusMenu.classList.remove("active");
 }
 
 input.addEventListener("keydown", (e) => {
@@ -224,24 +167,4 @@ input.addEventListener("input", () => {
   input.style.height = Math.min(input.scrollHeight, 130) + "px";
 });
 
-document.addEventListener("click", (e) => {
-  if (!e.target.closest("#moreMenu") && !e.target.closest(".top-btn")) {
-    moreMenu.classList.remove("active");
-  }
-
-  if (!e.target.closest("#plusMenu") && !e.target.closest(".plus-btn")) {
-    plusMenu.classList.remove("active");
-  }
-});
-
 window.sendMessage = sendMessage;
-window.openSidebar = openSidebar;
-window.closeSidebar = closeSidebar;
-window.toggleMore = toggleMore;
-window.togglePlus = togglePlus;
-window.newChat = newChat;
-window.clearChat = clearChat;
-window.exportChat = exportChat;
-window.toggleTheme = toggleTheme;
-window.quickAsk = quickAsk;
-window.handleFile = handleFile;
