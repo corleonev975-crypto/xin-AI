@@ -127,8 +127,10 @@ while (true) {
 
   const chunk = decoder.decode(value, { stream: true });
 
-  for (const char of chunk) {
-    output += char;
+  const words = chunk.split(" ");
+
+  for (const word of words) {
+    output += word + " ";
 
     aiBubble.innerHTML =
       renderMarkdown(output) + `<span class="typing-cursor"></span>`;
@@ -136,11 +138,9 @@ while (true) {
     highlightCode();
     scrollBottom();
 
-    let delay = 18;
+    let delay = 30 + Math.random() * 40;
 
-    if (/[.,!?]/.test(char)) delay = 150;
-    if (char === "\n") delay = 220;
-    if (Math.random() > 0.88) delay += 100;
+    if (/[.,!?]$/.test(word)) delay = 180;
 
     await new Promise((r) => setTimeout(r, delay));
   }
