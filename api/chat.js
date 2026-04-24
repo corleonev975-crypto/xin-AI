@@ -1,49 +1,61 @@
 export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return res.status(405).end("Method Not Allowed");
+    return res.status(405).json({ text: "Method not allowed" });
   }
 
   try {
     const { message, history = [] } = req.body;
 
     if (!process.env.GROQ_API_KEY) {
-      return res.status(500).end("⚠️ GROQ_API_KEY belum di-set di Vercel.");
+      return res.status(500).json({
+        text: "⚠️ GROQ_API_KEY belum diisi di Vercel."
+      });
     }
 
-    // Persona: santai (gue/lo), tegas, manusiawi, tanpa kata kasar
-    const systemPrompt = `
-Lo adalah Xinn AI.
+    // Blokir request ilegal langsung dari backend
+    const illegalPattern =
+      /ddos|d dos|malware|virus|trojan|ransomware|hack akun|hack|phishing|phising|carding|bypass|crack|exploit|spam bot/i;
 
-GAYA:
-- Pakai "gue" dan "lo"
-- Santai, jelas, langsung ke inti
-- Boleh sedikit nyindir halus, tapi jangan menghina/berkata kasar
-- Jangan pakai "saya/Anda"
-
-PERILAKU:
-- Kalau pertanyaan normal → bantu sampai selesai, kasih langkah + contoh jelas
-- Kalau coding legal → kasih kode rapi dalam markdown code block
-
-LARANGAN (HARUS DITAATI):
-- Jangan bantu hal ilegal/merusak (malware, DDoS, hacking, phishing, dll)
-- Kalau user minta hal ilegal → tolak tegas, singkat, tanpa detail teknis
-
-CONTOH PENOLAKAN:
-"Stop. Itu ilegal dan merusak. Gue gak bisa bantu ke arah itu. 
-Kalau lo mau, gue bisa bantu cara nge-amanin sistem atau belajar cybersecurity yang legal."
-
-JAGA:
-- Tetap konsisten gaya "gue/lo"
-- Jawaban rapi, gak kepotong
-`;
+    if (illegalPattern.test(message || "")) {
+      return res.status(200).json({
+        text:
+          "Stop. Itu ilegal. Gue gak bakal bantu begituan.\n\nKalau lo mau belajar yang bener, gue bisa bantu cybersecurity legal: cara nge-secure website, rate limit, firewall, atau anti-DDoS."
+      });
+    }
 
     const messages = [
-      { role: "system", content: systemPrompt },
-      ...history.map((m) => ({
-        role: m.role === "ai" ? "assistant" : "user",
-        content: m.text || ""
+      {
+        role: "system",
+        content: `
+Lo adalah Xinn AI.
+
+GAYA WAJIB:
+- Pakai "gue" dan "lo".
+- Jangan pakai "saya" atau "Anda".
+- Bahasa Indonesia santai.
+- Tegas, to the point, gak bertele-tele.
+- Boleh sedikit nyindir halus, tapi jangan menghina.
+- Kalau user bingung, jelasin step-by-step.
+- Kalau user minta kode legal, kasih kode lengkap dalam markdown code block.
+
+ATURAN KEAMANAN:
+- Jangan bantu malware, DDoS, hack, phishing, carding, bypass, crack, exploit, atau hal ilegal.
+- Kalau user minta ilegal, tolak tegas dan arahkan ke cybersecurity legal.
+
+FORMAT:
+- Jawaban rapi.
+- Jangan terlalu panjang kalau tidak perlu.
+- Tetap konsisten pakai gaya gue/lo.
+`
+      },
+      ...history.map((item) => ({
+        role: item.role === "ai" ? "assistant" : "user",
+        content: item.text || ""
       })),
-      { role: "user", content: message }
+      {
+        role: "user",
+        content: message
+      }
     ];
 
     const groqRes = await fetch(
@@ -57,37 +69,37 @@ JAGA:
         body: JSON.stringify({
           model: "llama-3.3-70b-versatile",
           messages,
-          temperature: 0.8,
-          max_tokens: 1600,
-          stream: true // kita stream biar typing enak
+          temperature: 0.75,
+          max_tokens: 1500,
+          stream: false
         })
       }
     );
 
-    if (!groqRes.ok || !groqRes.body) {
+    if (!groqRes.ok) {
       const err = await groqRes.text();
-      return res.status(500).end("⚠️ Error Groq: " + err);
+      return res.status(500).json({
+        text: "⚠️ Error Groq: " + err
+      });
     }
 
-    // Set header untuk streaming
-    res.writeHead(200, {
-      "Content-Type": "text/plain; charset=utf-8",
-      "Transfer-Encoding": "chunked",
-      "Cache-Control": "no-cache, no-transform"
+    const data = await groqRes.json();
+
+    let text =
+      data.choices?.[0]?.message?.content ||
+      "AI gak jawab.";
+
+    // Paksa style biar gak balik formal
+    text = text
+      .replace(/\bSaya\b/g, "Gue")
+      .replace(/\bsaya\b/g, "gue")
+      .replace(/\bAnda\b/g, "Lo")
+      .replace(/\banda\b/g, "lo");
+
+    return res.status(200).json({ text });
+  } catch (err) {
+    return res.status(500).json({
+      text: "⚠️ Server error. Cek api/chat.js atau GROQ_API_KEY."
     });
-
-    const reader = groqRes.body.getReader();
-    const decoder = new TextDecoder();
-
-    // Relay stream ke frontend (biar script.js lu bisa ngetik pelan)
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      res.write(decoder.decode(value));
-    }
-
-    res.end();
-  } catch (e) {
-    res.status(500).end("⚠️ Server error.");
   }
-      }
+}
